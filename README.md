@@ -45,9 +45,4 @@ export OPENAI_API_KEY="your_openai_api_key"
 ## 📊Dataset
 We conduct experiments on two datasets: [FakeSV](https://github.com/ICTMCG/FakeSV) and [FakeTT](https://github.com/ICTMCG/FakingRecipe/blob/main). 
 
-- **Processed Data**:
-  - [FakeSV Processed Data](./data/dataset/fake_sv_processed.json)
-  - [FakeTT Processed Data](./data/dataset/fake_tt_processed.json)
 
-##  Environment
-conda 4.5.11,Python 3.9.12,pytorch 2.4.1+cu121.For other libs,please refer to the file requirements.txt.
