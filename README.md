@@ -4,11 +4,12 @@
 Source code and dataset of the paper "CSI: An Investigative Multi-Agent Framework for Explainable Short Video Fake News Detection", which is accepted by Findings of the 64rd Annual Meeting of the Association for Computational Linguistics (ACL 2026).
 
 ---
+## Architecture Overview
 
 ![img.png](framework.png)
 
 
-## Architecture Overview
+
 ### 🎯  Multimodal Forensics Unit
 (Each agent simultaneously)
 - **Visual Analyst**: Analyze each shot in the video, generating a structured visual analysis $P_{\text{vision}}$ from the shot type, source material, visual content, and subtitles.
