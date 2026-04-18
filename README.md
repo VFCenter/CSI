@@ -1,5 +1,8 @@
 # 🎬CSI: An Investigative Multi-Agent Framework for Explainable Short Video Fake News Detection
 
+
+Source code and dataset of the paper "CSI: An Investigative Multi-Agent Framework for Explainable Short Video Fake News Detection", which is accepted by Findings of the 64rd Annual Meeting of the Association for Computational Linguistics (ACL 2026).
+
 ---
 
 ![img.png](framework.png)
