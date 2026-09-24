@@ -66,14 +66,27 @@ def execute_acquisition_flow(video_id: str, dataset: str = "FakeTT"):
             P_audio = future_audio.result()
             text_result = future_text.result()
         
-        T_c = f"Structured analysis of: {input_data.get('original_text', '')[:100]}..."
+        # The source datasets use different names for the original text.  Keep
+        # one canonical value in the result so the adjudicator feature stage
+        # can encode exactly the same text that was shown to the agents.
+        text_parts = [
+            input_data.get('original_text')
+            or input_data.get('description')
+            or input_data.get('title')
+            or input_data.get('keywords')
+            or input_data.get('event')
+            or '',
+            input_data.get('ocr', ''),
+        ]
+        original_text = '\n'.join(str(part).strip() for part in text_parts if part)
+        T_c = f"Structured analysis of: {original_text[:100]}..."
         E = text_result
         
         C = f"""
 === CSI Case File ===
 Video ID: {video_id}
 Dataset: {dataset}
-Original Text: {input_data.get('original_text', '')}
+Original Text: {original_text}
 === Visual Analysis (P_vision) ===
 {P_vision}
 === Acoustic Analysis (P_audio) ===  
@@ -85,6 +98,9 @@ Original Text: {input_data.get('original_text', '')}
 """
         
         results = {
+            "video_id": video_id,
+            "dataset": dataset,
+            "original_text": original_text,
             "P_vision": P_vision,
             "P_audio": P_audio,
             "T_c": T_c,

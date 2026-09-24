@@ -1,8 +1,11 @@
 import os
 from loguru import logger
 from dotenv import load_dotenv
-from csi_MFUpy import execute_acquisition_flow
+from csi_MFU import execute_acquisition_flow
 from csi_CRU import execute_deliberation_flow
+from agents.case_review_unit.adjudicator.utils.agent__feature_extractor import (
+    extract_and_save_agent_features,
+)
 from util import set_csi_environment_variables
 load_dotenv()
 def execute_csi_acquisition_flow(video_id: str, dataset: str = "FakeTT", use_async: bool = False):
@@ -37,6 +40,32 @@ def execute_csi_multi_agent(video_id: str, dataset: str = "FakeTT", use_async: b
             **acq_results,
             **delib_results
         }
+
+        feature_record = {
+            "text_analysis": acq_results.get("E", ""),
+            "audio_analysis": acq_results.get("P_audio", ""),
+            "visual_analysis": acq_results.get("P_vision", ""),
+            "review_result": delib_results.get("final_decision", ""),
+        }
+        feature_dir = os.getenv("CSI_FEATURE_DIR", "features")
+        try:
+            feature_path = extract_and_save_agent_features(
+                video_id=video_id,
+                dataset=dataset,
+                record=feature_record,
+                output_dir=feature_dir,
+            )
+            final_results["adjudicator_features"] = {
+                "status": "ok",
+                "path": str(feature_path),
+            }
+            logger.info(f"Adjudicator text features saved: {feature_path}")
+        except Exception as feature_error:
+            final_results["adjudicator_features"] = {
+                "status": "error",
+                "error": str(feature_error),
+            }
+            logger.error(f"Adjudicator feature extraction failed: {feature_error}")
         
         agent_prompts = {
             "multimodal_forensics_unit": "Multimodal Forensics Unit agents executed with new Gemini API",
