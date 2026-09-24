@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
+from pathlib import Path
+from .agent__feature_extractor import load_saved_agent_features
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 def pad_frame_sequence(seq_len, lst):
@@ -23,14 +25,24 @@ def pad_frame_sequence(seq_len, lst):
         attention_masks.append(mask)
     return torch.stack(result), torch.stack(attention_masks)
 class Adjudicator_Dataset(Dataset):
-    def __init__(self, vid_path, dataset):
-        self.dataset = dataset
+    def __init__(self, vid_path, dataset, feature_dir=None):
+        self.dataset = str(dataset).strip().lower()
+        dataset = self.dataset
+        self.vid = []
+        with open(vid_path, "r", encoding="utf-8") as fr:
+            self.vid = [line.strip() for line in fr if line.strip()]
+        feature_root = feature_dir or os.getenv("CSI_FEATURE_DIR", "features")
+        self.generated_feature_dir = Path(feature_root) / str(dataset).lower()
+        generated_feature_flags = [
+            (self.generated_feature_dir / f"{video_id}.pkl").exists()
+            for video_id in self.vid
+        ]
+        self.use_generated_text_features = any(generated_feature_flags)
+        self.has_all_generated_text_features = bool(self.vid) and all(
+            generated_feature_flags
+        )
         if dataset == 'fakesv':
             self.data_all = pd.read_json('./fea/fakesv/shots.json', orient='records', dtype=False, lines=True)
-            self.vid = []
-            with open(vid_path, "r") as fr:
-                for line in fr.readlines():
-                    self.vid.append(line.strip())
             self.data = self.data_all[self.data_all.video_id.isin(self.vid)]
             self.data.reset_index(inplace=True)
             self.raw_text_semantic_fea_path = './fea/fakesv/preprocess_text/path/to/file'
@@ -45,24 +57,21 @@ class Adjudicator_Dataset(Dataset):
                 self.raw_text_emo_fea = torch.load(f)
             self.audio_emo_fea_path = './fea/fakesv/path/to/file'
             self.visual_analysis_fea_path = './fea/fakesv/path/to/file'
-            with open(self.visual_analysis_fea_path, 'rb') as f:
-                self.visual_analysis_fea = torch.load(f)
             self.audio_analysis_fea_path = './fea/fakesv/path/to/file'
-            with open(self.audio_analysis_fea_path, 'rb') as f:
-                self.audio_analysis_fea = torch.load(f)
             self.structed_title_fea_path = './fea/fakesv/path/to/file'
-            with open(self.structed_title_fea_path, 'rb') as f:
-                self.structed_title_fea = torch.load(f)
             self.review_result_fea_path = './fea/fakesv/path/to/file'
-            with open(self.review_result_fea_path, 'rb') as f:
-                self.review_result_fea = torch.load(f)
+            if not self.has_all_generated_text_features:
+                with open(self.visual_analysis_fea_path, 'rb') as f:
+                    self.visual_analysis_fea = torch.load(f)
+                with open(self.audio_analysis_fea_path, 'rb') as f:
+                    self.audio_analysis_fea = torch.load(f)
+                with open(self.structed_title_fea_path, 'rb') as f:
+                    self.structed_title_fea = torch.load(f)
+                with open(self.review_result_fea_path, 'rb') as f:
+                    self.review_result_fea = torch.load(f)
         elif dataset == 'fakett':
             self.data_all = pd.read_json('./fea/fakett/shots.json', orient='records', lines=True,
                                          dtype={'video_id': str})
-            self.vid = []
-            with open(vid_path, "r") as fr:
-                for line in fr.readlines():
-                    self.vid.append(line.strip())
             self.data = self.data_all[self.data_all.video_id.isin(self.vid)]
             self.data.reset_index(inplace=True)
             self.raw_text_semantic_fea_path = './fea/fakett/preprocess_text/path/to/file'
@@ -79,17 +88,18 @@ class Adjudicator_Dataset(Dataset):
                 self.raw_text_emo_fea = torch.load(f)
             self.audio_emo_fea_path = './fea/fakett/path/to/file'
             self.visual_analysis_fea_path = './fea/fakett/path/to/file'
-            with open(self.visual_analysis_fea_path, 'rb') as f:
-                self.visual_analysis_fea = torch.load(f)
             self.audio_analysis_fea_path = './fea/fakett/path/to/file'
-            with open(self.audio_analysis_fea_path, 'rb') as f:
-                self.audio_analysis_fea = torch.load(f)
             self.structed_title_fea_path = './fea/fakett/path/to/file'
-            with open(self.structed_title_fea_path, 'rb') as f:
-                self.structed_title_fea = torch.load(f)
             self.review_result_fea_path = './fea/fakett/path/to/file'
-            with open(self.review_result_fea_path, 'rb') as f:
-                self.review_result_fea = torch.load(f)
+            if not self.has_all_generated_text_features:
+                with open(self.visual_analysis_fea_path, 'rb') as f:
+                    self.visual_analysis_fea = torch.load(f)
+                with open(self.audio_analysis_fea_path, 'rb') as f:
+                    self.audio_analysis_fea = torch.load(f)
+                with open(self.structed_title_fea_path, 'rb') as f:
+                    self.structed_title_fea = torch.load(f)
+                with open(self.review_result_fea_path, 'rb') as f:
+                    self.review_result_fea = torch.load(f)
     def __len__(self):
         return self.data.shape[0]
     def __getitem__(self, idx):
@@ -98,16 +108,26 @@ class Adjudicator_Dataset(Dataset):
         label = 1 if item['annotation'] == 'fake' else 0
         label = torch.tensor(label)
         raw_text_semantic_fea = self.raw_text_semantic_fea['last_hidden_state'][vid]
+        raw_text_emo_fea = self.raw_text_emo_fea['pooler_output'][vid]
+        generated_path = self.generated_feature_dir / f"{vid}.pkl"
+        if generated_path.exists():
+            generated_features = load_saved_agent_features(
+                generated_path
+            )
+            structed_title_fea = generated_features['text_analysis_fea']
+            review_result_fea = generated_features['review_result_fea']
+            visual_analysis_fea = generated_features['visual_analysis_fea']
+            audio_analysis_fea = generated_features['audio_analysis_fea']
+        else:
+            structed_title_fea = self.structed_title_fea[vid]
+            review_result_fea = self.review_result_fea[vid]
+            visual_analysis_fea = self.visual_analysis_fea[vid]
+            audio_analysis_fea = self.audio_analysis_fea[vid]
         raw_audio_fea = self.raw_audio_fea[vid]
         v_fea_path = os.path.join(self.raw_visual_fea_path, vid + '.pkl')
         raw_visual_frames = torch.tensor(torch.load(open(v_fea_path, 'rb')))
-        raw_text_emo_fea = self.raw_text_emo_fea['pooler_output'][vid]
         a_e_fea_path = os.path.join(self.audio_emo_fea_path, vid + '.pkl')
         raw_audio_emo = torch.load(open(a_e_fea_path, 'rb'))
-        structed_title_fea=self.structed_title_fea[vid]
-        review_result_fea=self.review_result_fea[vid]
-        visual_analysis_fea = self.visual_analysis_fea[vid]
-        audio_analysis_fea = self.audio_analysis_fea[vid]
         return {
             'vid': vid,
             'label': label,
